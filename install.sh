@@ -3,7 +3,7 @@
 # Usage: curl -fsSL https://raw.githubusercontent.com/your-org/sbx-toolkit/main/install.sh | bash
 set -euo pipefail
 
-REPO="maxkrivich/sbx-toolkit"
+REPO="uninitlzd/sbx-toolkit"
 BRANCH="main"
 BINARIES=("sbx-start" "sbx-setup")
 TEMPLATE_FILES=(
@@ -83,6 +83,75 @@ if [[ ${#missing[@]} -gt 0 ]]; then
 	echo "NOTE: Add $INSTALL_DIR to your PATH:"
 	echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
 	echo ""
+fi
+
+# ── set up CLAUDE_CODE_OAUTH_TOKEN in Keychain (macOS only) ───────────────────
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+	KEYCHAIN_SERVICE="claude-code-oauth-token"
+
+	if security find-generic-password -a "$USER" -s "$KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
+		echo ""
+		echo "✓ CLAUDE_CODE_OAUTH_TOKEN already stored in Keychain"
+	elif [[ -r /dev/tty ]]; then
+		echo ""
+		echo "No Claude Code OAuth token found in Keychain."
+		echo "Generate one with: claude setup-token"
+		printf "Paste token now to store it (leave blank to skip): "
+		# `if read ...; then` (not a bare `read`) so a failed/unconfigured
+		# /dev/tty (CI, docker exec without -it, etc.) degrades to the
+		# skip message below instead of killing the whole install under
+		# set -e.
+		if read -rs TOKEN </dev/tty 2>/dev/null; then
+			echo
+			if [[ -n "$TOKEN" ]]; then
+				security add-generic-password -a "$USER" -s "$KEYCHAIN_SERVICE" -w "$TOKEN" -U
+				echo "✓ Stored in Keychain"
+			else
+				echo "→ Skipped. Store later with:"
+				echo "  security add-generic-password -a \"\$USER\" -s $KEYCHAIN_SERVICE -w \"<token>\" -U"
+			fi
+			unset TOKEN
+		else
+			echo ""
+			echo "→ Couldn't read from terminal. Store later with:"
+			echo "  security add-generic-password -a \"\$USER\" -s $KEYCHAIN_SERVICE -w \"<token>\" -U"
+		fi
+	else
+		echo ""
+		echo "NOTE: no terminal attached — couldn't prompt for a token."
+		echo "      Store one later with:"
+		echo "      security add-generic-password -a \"\$USER\" -s $KEYCHAIN_SERVICE -w \"<token>\" -U"
+	fi
+
+	# ── add sbx-start wrapper to shell rc (idempotent) ────────────────────────────
+
+	WRAPPER_MARKER="# sbx-toolkit: pull CLAUDE_CODE_OAUTH_TOKEN from Keychain fresh on every"
+	case "${SHELL:-}" in
+	*/zsh) RC_FILE="$HOME/.zshrc" ;;
+	*/bash) RC_FILE="$HOME/.bashrc" ;;
+	*) RC_FILE="" ;;
+	esac
+
+	if [[ -n "$RC_FILE" ]]; then
+		if [[ -f "$RC_FILE" ]] && grep -qF "$WRAPPER_MARKER" "$RC_FILE"; then
+			echo "✓ sbx-start Keychain wrapper already present in $RC_FILE"
+		else
+			cat >>"$RC_FILE" <<RCEOF
+
+$WRAPPER_MARKER
+# sbx-start call, scoped to that one invocation only — never persisted.
+sbx-start() {
+  CLAUDE_CODE_OAUTH_TOKEN="\$(security find-generic-password -a "\$USER" -s "$KEYCHAIN_SERVICE" -w 2>/dev/null)" \\
+    command sbx-start "\$@"
+}
+RCEOF
+			echo "✓ Added sbx-start Keychain wrapper to $RC_FILE (restart your shell or: source $RC_FILE)"
+		fi
+	else
+		echo "NOTE: unrecognized \$SHELL ('${SHELL:-unset}') — skipped adding the sbx-start Keychain wrapper."
+		echo "      See https://github.com/${REPO}#env-vars to add it manually."
+	fi
 fi
 
 echo ""
