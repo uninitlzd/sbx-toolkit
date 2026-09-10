@@ -138,7 +138,16 @@ done < <(toml_get_array "$CONFIG_FILE" "blocked_domains")
 
 CMD=(sbx run --template "$TEMPLATE")
 
-[[ -n "$BRANCH" ]] && CMD+=(--branch "$BRANCH")
+# sbx run --branch <name> is gone; sbx run --clone is its replacement, but
+# it's a plain on/off toggle now — no way to pass a specific branch name.
+# "auto" maps cleanly to --clone (isolated mode). A fixed name has no flag
+# equivalent anymore, so warn rather than silently dropping it.
+if [[ -n "$BRANCH" ]]; then
+	CMD+=(--clone)
+	if [[ "$BRANCH" != "auto" ]]; then
+		warn "branch = \"$BRANCH\": sbx run no longer accepts a specific branch name (only --clone, on/off). Using --clone; it will not check out \"$BRANCH\" specifically."
+	fi
+fi
 
 CMD+=("$AGENT" ".")
 

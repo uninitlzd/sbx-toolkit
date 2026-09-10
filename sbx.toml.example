@@ -42,10 +42,11 @@ network_policy = "balanced"
 
 # ── git ───────────────────────────────────────────────────────────────────────
 
-# Branch mode. The agent works on its own branch instead of your main working tree.
-# - "auto":       sbx generates a branch name
-# - "my-branch":  use a fixed branch name
-# - omit:         direct mode — agent edits your working tree directly
+# Isolated-clone mode. The agent works on a private in-container clone of
+# this repo (sbx run --clone) instead of your working tree directly.
+# sbx no longer supports naming a specific branch here — any non-empty
+# value (conventionally "auto") turns clone mode on; omit for direct mode,
+# where the agent edits your working tree directly.
 branch = "auto"
 
 # ── secrets ───────────────────────────────────────────────────────────────────
