@@ -29,18 +29,22 @@ die() {
 }
 warn() { echo "WARNING: $*" >&2; }
 
-# Minimal TOML parser — reads key = "value" from flat keys (no section scoping)
+# Minimal TOML parser — reads key = "value" from flat keys (no section scoping).
+# Always returns 0 so a missing optional key doesn't kill the script under
+# `set -e`/pipefail — grep finding nothing is expected, not a script error.
 toml_get() {
 	local file="$1" key="$2"
 	grep -E "^${key}\s*=" "$file" |
 		head -1 |
 		sed -E 's/^[^=]+=\s*//; s/\r$//; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^"//; s/"$//'
+	return 0
 }
 
-# Extract items from a TOML array (multi-line or single-line)
+# Extract items from a TOML array (multi-line or single-line).
+# [ \t] not \s — stock macOS /usr/bin/awk (BWK awk) doesn't support \s.
 toml_get_array() {
 	local file="$1" key="$2"
-	awk "/^${key}\s*=/{found=1} found{print} /\]/{if(found){found=0}}" "$file" |
+	awk "/^${key}[ \t]*=/{found=1} found{print} /\]/{if(found){found=0}}" "$file" |
 		grep -oE '"[^"]+"' |
 		tr -d '"'
 }
@@ -142,6 +146,13 @@ CMD+=("$AGENT" ".")
 while IFS= read -r ws; do
 	[[ -n "$ws" ]] && CMD+=("$ws")
 done < <(toml_get_array "$CONFIG_FILE" "extra_workspaces")
+
+# Bare KEY form: sbx pulls the value from the current host shell env at run
+# time (not stored by sbx-toolkit itself). Export the real value before
+# calling sbx-start.
+while IFS= read -r var; do
+	[[ -n "$var" ]] && CMD+=(--env "$var")
+done < <(toml_get_array "$CONFIG_FILE" "env_vars")
 
 # ── summary + run ──────────────────────────────────────────────────────────────
 

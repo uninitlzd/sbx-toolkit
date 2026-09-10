@@ -166,6 +166,7 @@ Commit this file to your project repo. All fields under `[sandbox]`.
 | `allowed_domains` | | — | Extra domains to allow on top of base policy. |
 | `blocked_domains` | | — | Domains to block even if base policy allows them. |
 | `extra_workspaces` | | — | Extra paths to mount into the sandbox. |
+| `env_vars` | | — | Env var names to pass into the sandbox, read from your host shell at `sbx-start` time. |
 
 See [`.sbx.toml.example`](./.sbx.toml.example) for a fully annotated example.
 
@@ -193,6 +194,29 @@ Set once per machine — stored in OS keychain, injected by sbx proxy at runtime
 
 ```bash
 sbx secret set GITHUB_TOKEN
+```
+
+**Note:** `required_secrets` only checks and warns — `sbx-start` does not currently
+pass matched secrets into the `sbx run` command, so the proxy injection above
+applies only if something else on your machine also configured that secret
+globally. For a value your agent process needs to read directly from its own
+environment (e.g. `CLAUDE_CODE_OAUTH_TOKEN`, which the `claude` binary manages
+itself rather than sending as a static request header), use `env_vars` instead
+— see below.
+
+### Env vars
+
+`env_vars` passes host-shell values straight into the sandbox via `sbx run --env`,
+bypassing the secret proxy entirely. Use this for tokens the agent process reads
+and manages itself, not ones that get swapped into outbound request headers.
+
+```toml
+env_vars = ["CLAUDE_CODE_OAUTH_TOKEN"]
+```
+
+```bash
+export CLAUDE_CODE_OAUTH_TOKEN="$(security find-generic-password -a "$USER" -s "claude-code-oauth-token" -w)"
+sbx-start
 ```
 
 ---
