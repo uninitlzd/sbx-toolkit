@@ -57,6 +57,16 @@ branch = "auto"
 #   "GITHUB_TOKEN",
 # ]
 
+# ── env vars ──────────────────────────────────────────────────────────────────
+
+# Env vars to pass into the sandbox, pulled from your current host shell at
+# sbx-start time (bare-KEY form — sbx reads the value from your environment,
+# nothing is stored by sbx-toolkit itself). Export the real value before
+# running sbx-start.
+# env_vars = [
+#   "CLAUDE_CODE_OAUTH_TOKEN",
+# ]
+
 # ── workspaces ────────────────────────────────────────────────────────────────
 
 # Additional directories to mount into the sandbox (read-only).
