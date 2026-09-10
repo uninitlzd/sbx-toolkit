@@ -100,24 +100,23 @@ if [[ ${#MISSING_SECRETS[@]} -gt 0 ]]; then
 fi
 
 # ── apply base network policy ──────────────────────────────────────────────────
+# sbx policy init is one-time-only (must "sbx policy reset" to change it later),
+# and sbx policy ls no longer prints a simple current-policy string we could
+# grep for — it lists per-sandbox/kit rules instead. So there's no reliable way
+# to pre-check "is it already set to this value"; just attempt init and treat
+# "already initialized" as success. Policy-name validation is left to sbx
+# itself (single source of truth — it's already drifted once: set-default ->
+# init, open/locked-down -> allow-all/deny-all).
 
-CURRENT_POLICY=$(sbx policy ls 2>/dev/null | grep -oE 'open|balanced|locked-down' | head -1 || echo "")
-if [[ "$CURRENT_POLICY" != "$NETWORK_POLICY" ]]; then
-	echo "→ Setting network policy to: $NETWORK_POLICY"
-	if [[ "$DRY_RUN" == false ]]; then
-		case "$NETWORK_POLICY" in
-		open | balanced | locked-down)
-			if ! POLICY_OUTPUT="$(sbx policy set-default "$NETWORK_POLICY" 2>&1)"; then
-				if grep -q 'default policy is already set' <<<"$POLICY_OUTPUT"; then
-					echo "→ Network policy already set; leaving it unchanged"
-				else
-					echo "$POLICY_OUTPUT" >&2
-					exit 1
-				fi
-			fi
-			;;
-		*) die "Unknown network_policy '$NETWORK_POLICY'. Use: open, balanced, locked-down" ;;
-		esac
+echo "→ Ensuring global network policy: $NETWORK_POLICY"
+if [[ "$DRY_RUN" == false ]]; then
+	if ! POLICY_OUTPUT="$(sbx policy init "$NETWORK_POLICY" 2>&1)"; then
+		if grep -qi 'already initialized' <<<"$POLICY_OUTPUT"; then
+			echo "→ Global network policy already initialized; leaving unchanged (run 'sbx policy reset' first to change it)"
+		else
+			echo "$POLICY_OUTPUT" >&2
+			exit 1
+		fi
 	fi
 fi
 
